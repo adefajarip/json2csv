@@ -6,7 +6,7 @@ import json
 st.set_page_config(page_title="JSON Multi-Media Converter", page_icon="📊", layout="wide")
 
 st.title("📊 Konverter & Klasifikasi Data Per Media (Versi Final Bersih)")
-st.write("Aplikasi ini secara otomatis mengurai struktur JSON kotor, melakukan *flattening* pada objek bersarang (seperti statistik media sosial), dan memisahkan setiap media berdasarkan kolom uniknya menggunakan pembatas pipa (`|`).")
+st.write("Aplikasi ini secara otomatis mengurai struktur JSON kotor, melakukan *flattening* pada objek bersarang (seperti statistik media sosial), dan memisahkan setiap media berdasarkan kolom uniknya atau menampilkan & mengunduh seluruh media sekaligus menggunakan pembatas pipa (`|`).")
 
 uploaded_file = st.file_uploader("Pilih file JSON hasil scraping", type=["json"])
 
@@ -78,20 +78,29 @@ if uploaded_file is not None:
             if 'media' in raw_df.columns:
                 st.success("Struktur JSON berhasil dibaca dan dinormalisasi sepenuhnya!")
                 
-                # Mendapatkan daftar media unik secara otomatis (twitter, tiktok, instagram, media_online, dll)
-                media_list = sorted(raw_df['media'].dropna().unique().tolist())
+                # Mendapatkan daftar media unik secara otomatis dan menyisipkan "All Media" di baris paling atas dropdown
+                media_list = ["All Media"] + sorted(raw_df['media'].dropna().unique().tolist())
                 
                 st.subheader("📁 Pilih Klasifikasi Media")
                 selected_media = st.selectbox(
-                    "Pilih jenis media untuk diekstrak (Setiap media akan menampilkan kolom spesifiknya secara rapi):", 
+                    "Pilih jenis media untuk diekstrak (Pilih 'All Media' untuk melihat & mengunduh keseluruhan data):", 
                     media_list
                 )
                 
-                # Filter data berdasarkan media terpilih
-                df_filtered = raw_df[raw_df['media'] == selected_media].copy()
-                
-                # PEMBERSIHAN 1: Hapus kolom sampah yang seluruh barisnya kosong (NaN) khusus untuk media ini
-                df_clean = df_filtered.dropna(how='all', axis=1)
+                # --- PROSES FILTER DATA BERDASARKAN FILTER DROPDOWN ---
+                if selected_media == "All Media":
+                    # Ambil seluruh data gabungan tanpa memfilter baris
+                    df_filtered = raw_df.copy()
+                    
+                    # Hapus kolom yang benar-benar kosong di semua baris data gabungan
+                    df_clean = df_filtered.dropna(how='all', axis=1)
+                    st.info("💡 Anda sedang menampilkan **All Media**. Seluruh data media sosial dan media online digabungkan ke dalam satu tabel ekspor.")
+                else:
+                    # Filter data berdasarkan media spesifik pilihan user (misal: twitter, tiktok, dll)
+                    df_filtered = raw_df[raw_df['media'] == selected_media].copy()
+                    
+                    # Hapus kolom sampah milik media lain yang bernilai NaN seluruhnya pada media ini
+                    df_clean = df_filtered.dropna(how='all', axis=1)
                 
                 # PEMBERSIHAN 2: Bersihkan string teks dari karakter Enter/Line Break (\n atau \r) 
                 # Langkah ini wajib agar saat diekspor menggunakan '|', baris tabel tidak melompat ke bawah
@@ -122,9 +131,10 @@ if uploaded_file is not None:
                 # Generate data CSV dengan standard encoding utf-8-sig agar aman dibuka di Excel
                 csv_data = df_clean.to_csv(index=include_index, sep=sep, encoding="utf-8-sig")
                 
-                # Penamaan file output otomatis yang rapi
+                # Penamaan file output otomatis yang menyesuaikan (jika All Media -> _all_media_clean.csv)
                 file_base_name = uploaded_file.name.rsplit('.', 1)[0]
-                output_filename = f"{file_base_name}_{selected_media}_clean.csv"
+                media_suffix = selected_media.lower().replace(' ', '_')
+                output_filename = f"{file_base_name}_{media_suffix}_clean.csv"
                 
                 st.markdown("---")
                 st.download_button(
